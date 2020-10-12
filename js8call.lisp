@@ -29,6 +29,53 @@
 (defvar *tx-q* (jeff:make-queue))
 (defvar *rx-q* (jeff:make-queue))
 
+(defun ten-digit-maidenhead (latitude longitude)
+  ;; lat/lon to ten-digit maidenhead
+  (let* ((field-letters (load-time-value "ABCDEFGHIJKLMNOPQR" t))
+         (subsquare-letters (load-time-value "abcdefghijklmnopqrstuvwx" t))
+	 (digits nil)
+	 (lon-degrees 360.0)
+	 (lat-degrees 180.0)
+	 (lon (+ 180.0 longitude))
+	 (lat (+ 90.0 latitude))
+	 (lon-remainder lon)
+	 (lat-remainder lat))
+    (flet ((grid-pair (divisions lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	     (setf lon-degrees (/ lon-degrees divisions))
+	     (setf lat-degrees (/ lat-degrees divisions))
+	     (setf lon (/ lon-remainder lon-degrees))
+	     (setf lat (/ lat-remainder lat-degrees))
+	     (list (truncate lon) (truncate lat) lon-degrees lat-degrees
+		   lon (nth-value 1 (floor lon-remainder lon-degrees))
+		   lat (nth-value 1 (floor lat-remainder lat-degrees)))))
+      (destructuring-bind (new-lon new-lat lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	  (grid-pair 18 lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	(push new-lon digits)
+	(push new-lat digits)
+	(destructuring-bind (new-lon new-lat lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	    (grid-pair 10 lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	  (push new-lon digits)
+	  (push new-lat digits)
+	  (destructuring-bind (new-lon new-lat lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	      (grid-pair 24 lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	    (push new-lon digits)
+	    (push new-lat digits)
+	    (destructuring-bind (new-lon new-lat lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+		(grid-pair 10 lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+	      (push new-lon digits)
+	      (push new-lat digits)
+	      (destructuring-bind (new-lon new-lat lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+		  (grid-pair 24 lon-degrees lat-degrees lon lon-remainder lat lat-remainder)
+		(declare (ignore lon-degrees lat-degrees lon lon-remainder lat lat-remainder))
+		(push new-lon digits)
+		(push new-lat digits))))))
+      (format nil "~c~c~d~d~c~c~d~d~c~c"
+              (char field-letters (nth 9 digits)) (char field-letters (nth 8 digits))
+	      (nth 7 digits) (nth 6 digits)
+              (char subsquare-letters (nth 5 digits)) (char subsquare-letters (nth 4 digits))
+	      (nth 3 digits) (nth 2 digits)
+              (char subsquare-letters (nth 1 digits)) (char subsquare-letters (nth 0 digits))))))
+
 (defun fix-time (time)
   (round (/ time 1000)))
 
@@ -133,22 +180,6 @@
        (when (not (equal "" (cdr-assoc "GRID" params)))
 	 (setf (gethash (cdr-assoc "CALL" params) *grids*)
 	       (clean-string (cdr-assoc "GRID" params)))))
-;;      ((equal "RX.DIRECTED" type)
-;;       (when (not (equal "" (cdr-assoc "GRID" params)))
-;;	 (setf (gethash (cdr-assoc "CALL" params) *grids*)
-;;	       (clean-string (cdr-assoc "GRID" params))))
-;;       (bt:with-lock-held (*heard-lock*)
-;;	 (setf *heard*
-;;	       (cons
-;;		(list (cons :timestamp (fix-time (cdr-assoc "UTC" params)))
-;;		      (cons :from (cdr-assoc "FROM" params))
-;;		      (cons :to (cdr-assoc "TO" params))
-;;		      (cons :snr (cdr-assoc "SNR" params))
-;;		      (cons :grid (cdr-assoc "GRID" params))
-;;		      (cons :freq (+ *dial* *offset*))
-;;		      (cons :cmd (cdr-assoc "CMD" params))
-;;		      (cons :extra (cdr-assoc "EXTRA" params)))
-;;		*heard*))))
       ((equal "RX.TEXT" type)
        (bt:with-lock-held (*all-heard-lock*)
 	 (setf *all-heard* (make-hash-table :test #'equal))
@@ -383,6 +414,10 @@ have to hit <return> on the keyboard to send."
       (send-text
        (concatenate 'string "@HB HEARTBEAT " (subseq *grid* 0 4))))))
 
+(defun query-messages () ; works
+  ;; @ALLCALL QUERY MSGS
+  (send-text "@ALLCALL QUERY MSGS"))
+
 (defun send-sms (phone message)
   ;; @APRSIS CMD :SMSGTE  :@2069659825 TEST SMS MESSAGE{001}
   (bt:with-lock-held (*sequence-lock*)
@@ -392,13 +427,13 @@ have to hit <return> on the keyboard to send."
 	     phone message
 	     (incf *sequence*)))))
 
-(defun send-email (email message)
-  ;; @APRSIS CMD :EMAIL-2  :JEFF@GRITCH.ORG TEST MESSAGE{001}
+(defun send-email (address message)
+  ;; @APRSIS CMD :EMAIL-2  :PRESIDENT@WHITEHOUSE.GOV TEST MESSAGE{001}
   (bt:with-lock-held (*sequence-lock*)
 ;;    (set-tx-text
     (send-text
      (format nil "@APRSIS CMD :EMAIL-2  :~A ~A{~3,'0D'}"
-	     email message
+	     address message
 	     (incf *sequence*)))))
 
 (defun send-directed-message (dest-call message)
@@ -466,54 +501,6 @@ have to hit <return> on the keyboard to send."
        (format t "----- RX.TEXT -----~%Time: ~A~%"
 	       (unix-to-timestamp timestamp))
        )
-;;       (with-open-file
-;;	   (file "/home/jfrancis/Dropbox/n0gq_heard.dot" :direction :output :if-exists :supersede)
-;;	 (format file "digraph {~%")
-;;	 (bt:with-lock-held (*all-heard-lock*)
-;;	   ;; output a list of who heard who, excluding me
-;;	   (mapcar
-;;	    (lambda (a)
-;;	      (mapcar
-;;	       (lambda (b)
-;;		 (when (and (not (equal *call* a))
-;;			    (not (equal *call* b)))
-;;		   (format file "  \"~A\" -> \"~A\";~%" a b)))
-;;	       (gethash a *all-heard*))
-;;	      (format t "~A: ~A~%"
-;;		      a
-;;		      (english-join (gethash a *all-heard*))))
-;;	    (hash-table-keys *all-heard*)))
-;;	 (let ((heard-me (remove nil
-;;				 (mapcar
-;;				  (lambda (a)
-;;				    (when (member *call* (gethash a *all-heard*) :test #'equal) a))
-;;				  (hash-table-keys *all-heard*)))))
-;;	   ;; output a list of people who heard me
-;;	   (mapcar
-;;	    (lambda (a)
-;;	      (format file "  \"~A\" -> \"~A\";~%" *call* a))
-;;	    heard-me)
-;;	   ;; output a list of people who I heard who somebody else heard, as well
-;;	   (mapcar
-;;	    (lambda (a)
-;;	      (format file "  \"~A\" -> \"~A\";~%" a *call*))
-;;	    (intersection (gethash *call* *all-heard*)
-;;			  (remove *call*
-;;				  (remove-duplicate-strings
-;;				   (alexandria:flatten
-;;				    (mapcar
-;;				     (lambda (a)
-;;				       (gethash a *all-heard*))
-;;				     (remove *call* (hash-table-keys *all-heard*) :test #'equal))))
-;;				  :test #'equal)
-;;			  :test #'equal))	      
-;;	   ;; output a list of people who I heard who also heard me
-;;	   (mapcar
-;;	    (lambda (a)
-;;	      (format file "  \"~A\" -> \"~A\";~%" a *call*))
-;;	    (remove-if-not (lambda (b) (member b heard-me :test #'equal)) (gethash *call* *all-heard*))))
-;;	 (format file "}~%"))
-;;       (format t "~%"))
       ((equal "MODE.SPEED" type)
        (format t "----- MODE.SPEED -----~%Time: ~A~%Speed: ~A~%~%"
 	       (unix-to-timestamp timestamp)
@@ -552,28 +539,6 @@ have to hit <return> on the keyboard to send."
 		       (af:deg-to-cardinal-course
 			(call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params)))
 		       "")))
-;;	   (format t "----- RX.DIRECTED -----~%Time: ~A~%Cmd: ~A~%From: ~A~%To: ~A~%SNR (~A hearing ~A): ~A:1~%Grid: ~A~%Extra: ~A~%Text: ~A~%Dist: ~,1Fmi~%Dir: ~,1F (~A)~%~%"
-;;		   (js8-time (cdr-assoc "UTC" params))
-;;		   (cdr-assoc "CMD" params)
-;;		   (cdr-assoc "FROM" params)
-;;		   (cdr-assoc "TO" params)
-;;		   (cdr-assoc "TO" params) (cdr-assoc "FROM" params) (cdr-assoc "SNR" params)
-;;		   (cdr-assoc "GRID" params)
-;;		   (cdr-assoc "EXTRA" params)
-;;		   (cdr-assoc "TEXT" params)
-;;		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-;;			    (gethash (cdr-assoc "TO" params) *grids*))
-;;		       (call-distance (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
-;;		       "")
-;;		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-;;			    (gethash (cdr-assoc "TO" params) *grids*))
-;;		       (call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
-;;		       "")
-;;		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-;;			    (gethash (cdr-assoc "TO" params) *grids*))
-;;		       (af:deg-to-cardinal-course
-;;			(call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params)))
-;;		       "")))
       ((equal "TX.FRAME" type)
        (format t "----- TX.FRAME -----~%Time: ~A~%Tones: ~A~%~%"
 	       (unix-to-timestamp timestamp)
