@@ -29,6 +29,8 @@
 (defvar *tx-q* (jeff:make-queue))
 (defvar *rx-q* (jeff:make-queue))
 
+(defvar *raw-json* nil)
+
 (defun ten-digit-maidenhead (latitude longitude)
   ;; lat/lon to ten-digit maidenhead
   (let* ((field-letters (load-time-value "ABCDEFGHIJKLMNOPQR" t))
@@ -203,16 +205,26 @@
       )))
 
 (defun create-listener (socket)
-  (loop ;repeat 10 do
-	(usocket:wait-for-input socket)
-	(bt:with-lock-held (*rx-queue-lock*)
-	  (jeff:enqueue
-	   (cons
-	    (cons
-	     :timestamp
-	     (timestamp-to-unix
-	      (now)))
-	    (rest (jsown:parse (read-line (usocket:socket-stream socket))))) *rx-q*))))
+  (let ((line nil))
+    (loop ;repeat 10 do
+	  (usocket:wait-for-input socket)
+	  (bt:with-lock-held (*rx-queue-lock*)
+	    (setf line (read-line
+			(usocket:socket-stream socket)))
+	    (jeff:enqueue
+	     (cons
+	      (cons :raw line)
+	      (cons
+	       (cons
+		:timestamp
+		(timestamp-to-unix
+		 (now)))
+	       (rest
+		(jsown:parse line))))
+	     *rx-q*))
+	  (setf *raw-json* (cons line *raw-json*))
+	  (when *verbose*
+	    (format t "~%~A~%~%" line)))))
 
 (defun create-talker (socket)
   (loop 
@@ -401,13 +413,41 @@ have to hit <return> on the keyboard to send."
 	  (cons "type" "WINDOW.RAISE")
 	  (cons "value" "")))))
 
+(defun snr? (call)
+  ;; Ask for an SNR from another station.
+  (send-text (concatenate 'string call " SNR?")))
+
+(defun grid? (call)
+  ;; Ask for a grid from another station.
+  (send-text (concatenate 'string call " GRID?")))
+
+(defun info? (call)
+  ;; Ask for another station,s INFO string..
+  (send-text (concatenate 'string call " INFO?")))
+
+(defun status? (call)
+  ;; Ask for another station,s STATUS string..
+  (send-text (concatenate 'string call " STATUS?")))
+
+(defun hearing? (call)
+  ;; Ask who another station is hearing.
+  (send-text (concatenate 'string call " HEARING?")))
+
+(defun agn? (call)
+  ;; Ask a station to repeat it's last transmission.
+  (send-text (concatenate 'string call " AGN?")))
+
+(defun qsl? (call)
+  ;; Ask a station if he heard your last message.
+  (send-text (concatenate 'string call " QSL?")))
+
 (defun send-grid-square-to-aprs (&optional grid) ; works
   ;; @APRSIS GRID CN87WU31IB
   (if (or *grid* grid)
       (send-text (concatenate 'string "@APRSIS GRID " (if grid grid *grid*)))
       (format t "Unknown Grid Square. Unable to send Grid.~%~%")))
 
-(defun send-spot () ; works
+(defun send-heartbeat () ; works
   ;; @HB HEARTBEAT CN87
   (when *grid*
     (when (>= (length *grid*) 4)
@@ -437,8 +477,7 @@ have to hit <return> on the keyboard to send."
 	     (incf *sequence*)))))
 
 (defun send-directed-message (dest-call message)
-  ;; K0FBS MSG TEST TEST TEST
-;;  (set-tx-text
+  ;; N0CLU MSG TEST TEST TEST
   (send-text
    (format nil "~A MSG ~A"
 	   dest-call message)))
@@ -611,6 +650,10 @@ have to hit <return> on the keyboard to send."
 ;;		 (usocket:wait-for-input socket :timeout 1)
 		 (format t "~A~%" (read-line (usocket:socket-stream socket)))))
       (usocket:socket-close socket))))
+
+(defun write-log (&optional (file-name "log.json"))
+  (with-open-file (out file-name :direction :output :if-exists :supersede)
+    (format out "[~A]~%" (jeff:join *raw-json* ", "))))
 
 ;; (send-spot t t t)
 ;; (send-grid-square-to-aprs)
