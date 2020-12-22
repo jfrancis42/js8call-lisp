@@ -8,6 +8,7 @@
 (defvar *talker-thread* nil)
 (defvar *tx-queue-lock* (bt:make-lock))
 (defvar *rx-queue-lock* (bt:make-lock))
+(defvar *directed-queue-lock* (bt:make-lock))
 (defvar *all-heard-lock* (bt:make-lock))
 (defvar *heard-lock* (bt:make-lock))
 (defvar *verbose* nil)
@@ -28,8 +29,13 @@
 
 (defvar *tx-q* (jeff:make-queue))
 (defvar *rx-q* (jeff:make-queue))
+(defvar *directed-q* (jeff:make-queue))
+
+(defvar *suppress-activity* nil)
 
 (defvar *raw-json* nil)
+
+(defvar *speed* (list :normal :fast :turbo :invalid :slow))
 
 (defun ten-digit-maidenhead (latitude longitude)
   ;; lat/lon to ten-digit maidenhead
@@ -123,29 +129,6 @@
 			(equal "CQ" to))
 	      (cons from to))))))))
 
-(defun process-entry-test (entry)
-  (let* ((type (cdr-assoc "type" entry))
-	 (params (rest (cdr-assoc "params" entry)))
-	 (value (cdr-assoc "value" entry))
-    	 (timestamp (cdr-assoc :timestamp entry)))
-    (cond
-      ((equal "STATION.CALLSIGN" type)
-       (setf *call* (clean-string value)))
-      ((equal "STATION.GRID" type)
-       (setf *grid* (string-or-nil value))
-       (setf (gethash *call* *grids*) (clean-string *grid*)))
-      ((equal "STATION.GRID" type)
-       (setf *grid* (string-or-nil value))
-       (setf (gethash *call* *grids*) (clean-string *grid*)))
-      ((equal "RX.SPOT" type)
-       (when (not (equal "" (cdr-assoc "GRID" params)))
-	 (setf (gethash (cdr-assoc "CALL" params) *grids*)
-	       (string-or-nil (clean-string (cdr-assoc "GRID" params))))))
-      ((equal "RX.DIRECTED" type)
-       (when (not (equal "" (cdr-assoc "GRID" params)))
-	 (setf (gethash (cdr-assoc "CALL" params) *grids*)
-	       (clean-string (cdr-assoc "GRID" params))))))))
-
 (defun process-entry (entry)
   (let* ((type (cdr-assoc "type" entry))
 	 (params (rest (cdr-assoc "params" entry)))
@@ -179,6 +162,8 @@
 				     (cdr-assoc "OFFSET" params))))
 		*heard*))))
       ((equal "RX.DIRECTED" type)
+       (bt:with-lock-held (*directed-queue-lock*)
+	 (jeff:enqueue entry *directed-q*))
        (when (not (equal "" (cdr-assoc "GRID" params)))
 	 (setf (gethash (cdr-assoc "CALL" params) *grids*)
 	       (clean-string (cdr-assoc "GRID" params)))))
@@ -260,7 +245,7 @@
 	     (loop while (not (jeff:queue-empty-p *rx-q*))
 		collect (jeff:dequeue *rx-q*))))
 
-(defun get-rig-freq () ; works
+(defun get-rig-freq ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -268,7 +253,7 @@
 	  (cons "type" "RIG.GET_FREQ")
 	  (cons "value" "")))))
 
-(defun set-rig-freq (dial offset) ; works
+(defun set-rig-freq (dial offset)
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -278,7 +263,7 @@
 	  (cons "type" "RIG.SET_FREQ")
 	  (cons "value" "")))))
 
-(defun get-callsign () ; works
+(defun get-callsign ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -286,7 +271,7 @@
 	  (cons "type" "STATION.GET_CALLSIGN")
 	  (cons "value" "")))))
 
-(defun get-grid-square () ; works
+(defun get-grid-square ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -294,7 +279,7 @@
 	  (cons "type" "STATION.GET_GRID")
 	  (cons "value" "")))))
 
-(defun get-info () ; works
+(defun get-info ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -302,7 +287,7 @@
 	  (cons "type" "STATION.GET_INFO")
 	  (cons "value" "")))))
 
-(defun set-grid-square (grid) ; works
+(defun set-grid-square (grid)
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -318,7 +303,7 @@
 	  (cons "type" "STATION.SET_INFO")
 	  (cons "value" info)))))
 
-(defun get-call-activity () ; works
+(defun get-call-activity ()
   "right white box"
   (send-message
    (jsown:to-json
@@ -327,7 +312,7 @@
 	  (cons "type" "RX.GET_CALL_ACTIVITY")
 	  (cons "value" "")))))
 
-(defun get-call-selected () ; works
+(defun get-call-selected ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -335,7 +320,7 @@
 	  (cons "type" "RX.GET_CALL_SELECTED")
 	  (cons "value" "")))))
 
-(defun get-band-activity () ; works
+(defun get-band-activity ()
   "left white box"
   (send-message
    (jsown:to-json
@@ -344,7 +329,7 @@
 	  (cons "type" "RX.GET_BAND_ACTIVITY")
 	  (cons "value" "")))))
 
-(defun get-rx-text () ; works
+(defun get-rx-text ()
   "yellow window"
   (send-message
    (jsown:to-json
@@ -353,7 +338,7 @@
 	  (cons "type" "RX.GET_TEXT")
 	  (cons "value" "")))))
 
-(defun get-tx-text () ; works
+(defun get-tx-text ()
   "below yellow window"
   (send-message
    (jsown:to-json
@@ -362,7 +347,7 @@
 	  (cons "type" "TX.GET_TEXT")
 	  (cons "value" "")))))
 
-(defun set-tx-text (text) ; works
+(defun set-tx-text (text)
   "Queue the text up for sending, but don't actually send it (ie, you
 have to hit <return> on the keyboard to send."
   (send-message
@@ -372,7 +357,7 @@ have to hit <return> on the keyboard to send."
 	  (cons "type" "TX.SET_TEXT")
 	  (cons "value" text)))))
 
-(defun send-text (message) ; works
+(defun send-text (message)
   "Send the supplied text on the next transmit cycle."
   (send-message
    (jsown:to-json
@@ -381,7 +366,7 @@ have to hit <return> on the keyboard to send."
 	  (cons "type" "TX.SEND_MESSAGE")
 	  (cons "value" message)))))
 
-(defun get-speed () ; works
+(defun get-speed ()
   (send-message
    (jsown:to-json
     (list :OBJ
@@ -389,7 +374,7 @@ have to hit <return> on the keyboard to send."
 	  (cons "type" "MODE.GET_SPEED")
 	  (cons "value" "")))))
 
-(defun set-speed (speed) ; works
+(defun set-speed (speed)
   (let ((spd
 	 (cond
 	   ((equal :slow speed) 4)
@@ -441,43 +426,35 @@ have to hit <return> on the keyboard to send."
   ;; Ask a station if he heard your last message.
   (send-text (concatenate 'string call " QSL?")))
 
-(defun send-grid-square-to-aprs (&optional grid) ; works
-  ;; @APRSIS GRID CN87WU31IB
+(defun send-grid-square-to-aprs (&optional grid)
   (if (or *grid* grid)
       (send-text (concatenate 'string "@APRSIS GRID " (if grid grid *grid*)))
       (format t "Unknown Grid Square. Unable to send Grid.~%~%")))
 
-(defun send-heartbeat () ; works
-  ;; @HB HEARTBEAT CN87
+(defun send-heartbeat ()
   (when *grid*
     (when (>= (length *grid*) 4)
       (send-text
        (concatenate 'string "@HB HEARTBEAT " (subseq *grid* 0 4))))))
 
-(defun query-messages () ; works
-  ;; @ALLCALL QUERY MSGS
+(defun query-messages ()
   (send-text "@ALLCALL QUERY MSGS"))
 
 (defun send-sms (phone message)
-  ;; @APRSIS CMD :SMSGTE  :@2069659825 TEST SMS MESSAGE{001}
   (bt:with-lock-held (*sequence-lock*)
-;;    (set-tx-text
     (send-text
-     (format nil "@APRSIS CMD :SMSGTE  :@~A ~A{~3,'0D'}"
+     (format nil "@APRSIS CMD :SMSGTE  :@~A ~A{~3,'0D}"
 	     phone message
 	     (incf *sequence*)))))
 
 (defun send-email (address message)
-  ;; @APRSIS CMD :EMAIL-2  :PRESIDENT@WHITEHOUSE.GOV TEST MESSAGE{001}
   (bt:with-lock-held (*sequence-lock*)
-;;    (set-tx-text
     (send-text
-     (format nil "@APRSIS CMD :EMAIL-2  :~A ~A{~3,'0D'}"
+     (format nil "@APRSIS CMD :EMAIL-2  :~A ~A{~3,'0D}"
 	     address message
 	     (incf *sequence*)))))
 
 (defun send-directed-message (dest-call message)
-  ;; N0CLU MSG TEST TEST TEST
   (send-text
    (format nil "~A MSG ~A"
 	   dest-call message)))
@@ -507,18 +484,19 @@ have to hit <return> on the keyboard to send."
 	       (cdr-assoc "OFFSET" params)
 	       (+ (cdr-assoc "DIAL" params)
 		  (cdr-assoc "OFFSET" params))
-	       (cdr-assoc "SPEED" params)))
+	       (nth (cdr-assoc "SPEED" params) *speed*)))
       ((equal "RX.ACTIVITY" type)
-       (format t "----- RX.ACTIVITY -----~%Time: ~A~%Dial: ~A hz~%Offset: ~A hz~%Freq: ~A hz~%SNR: ~A:1~%Speed: ~A~%Drift: ~D ms~%Value: ~A~%~%"
-	       (unix-to-timestamp timestamp)
-	       (cdr-assoc "DIAL" params)
-	       (cdr-assoc "OFFSET" params)
-	       (+ (cdr-assoc "DIAL" params)
-		  (cdr-assoc "OFFSET" params))
-	       (cdr-assoc "SNR" params)
-	       (cdr-assoc "SPEED" params)
-	       (round (* 1000.0 (cdr-assoc "TDRIFT" params)))
-	       value))
+       (unless *suppress-activity*
+	 (format t "----- RX.ACTIVITY -----~%Time: ~A~%Dial: ~A hz~%Offset: ~A hz~%Freq: ~A hz~%SNR: ~A:1~%Speed: ~A~%Drift: ~D ms~%Value: ~A~%~%"
+		 (unix-to-timestamp timestamp)
+		 (cdr-assoc "DIAL" params)
+		 (cdr-assoc "OFFSET" params)
+		 (+ (cdr-assoc "DIAL" params)
+		    (cdr-assoc "OFFSET" params))
+		 (cdr-assoc "SNR" params)
+		 (nth (cdr-assoc "SPEED" params) *speed*)
+		 (round (* 1000.0 (cdr-assoc "TDRIFT" params)))
+		 value)))
       ((equal "STATION.CALLSIGN" type)
        (format t "----- STATION.CALLSIGN -----~%Time: ~A~%Call: ~A~%~%"
 	       (unix-to-timestamp timestamp)
@@ -543,7 +521,7 @@ have to hit <return> on the keyboard to send."
       ((equal "MODE.SPEED" type)
        (format t "----- MODE.SPEED -----~%Time: ~A~%Speed: ~A~%~%"
 	       (unix-to-timestamp timestamp)
-	       (cdr-assoc "SPEED" params)))
+	       (nth (cdr-assoc "SPEED" params) *speed*)))
       ((equal "STATION.GRID" type)
        (format t "----- STATION.GRID -----~%Time: ~A~%Grid: ~A~%~%"
 	       (unix-to-timestamp timestamp)
@@ -553,31 +531,38 @@ have to hit <return> on the keyboard to send."
 	       (unix-to-timestamp timestamp)
 	       value))
       ((equal "RX.DIRECTED" type)
+;;       (format t "~A~%" params)
 ;;       (if (equal "HEARTBEAT SNR" (cdr-assoc "CMD" params))
-	   (format t "----- RX.DIRECTED -----~%Time: ~A~%Cmd: ~A~%From: ~A~%To: ~A~%SNR (~A hearing ~A): ~A:1~%SNR (~A hearing ~A): ~A:1~%Grid: ~A~%Text: ~A~%Dist: ~,1Fmi~%Dir: ~,1F (~A)~%~%"
-		   (js8-time (cdr-assoc "UTC" params))
-		   (cdr-assoc "CMD" params)
-		   (cdr-assoc "FROM" params)
-		   (cdr-assoc "TO" params)
-;;		   (cdr-assoc "TO" params) (cdr-assoc "FROM" params) (cdr-assoc "SNR" params)
-		   *call* (cdr-assoc "FROM" params) (cdr-assoc "SNR" params)
-		   (cdr-assoc "FROM" params) (cdr-assoc "TO" params) (parse-integer
-								      (cdr-assoc "EXTRA" params) :junk-allowed t)
-		   (cdr-assoc "GRID" params)
-		   (cdr-assoc "TEXT" params)
-		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-			    (gethash (cdr-assoc "TO" params) *grids*))
-		       (call-distance (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
-		       "")
-		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-			    (gethash (cdr-assoc "TO" params) *grids*))
-		       (call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
-		       "")
-		   (if (and (gethash (cdr-assoc "FROM" params) *grids*)
-			    (gethash (cdr-assoc "TO" params) *grids*))
-		       (af:deg-to-cardinal-course
-			(call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params)))
-		       "")))
+       (format t "----- RX.DIRECTED -----~%Time: ~A~%Cmd: ~A~%From: ~A~%To: ~A~%SNR (~A hearing ~A): ~A:1~%SNR (~A hearing ~A): ~A:1~%Dial: ~A hz~%Offset: ~A hz~%Freq: ~A hz~%Grid: ~A~%Speed: ~A~%Drift: ~D ms~%Text: ~A~%Dist: ~,1Fmi~%Dir: ~,1F (~A)~%~%"
+	       (js8-time (cdr-assoc "UTC" params))
+	       (cdr-assoc "CMD" params)
+	       (cdr-assoc "FROM" params)
+	       (cdr-assoc "TO" params)
+;;	       (cdr-assoc "TO" params) (cdr-assoc "FROM" params) (cdr-assoc "SNR" params)
+	       *call* (cdr-assoc "FROM" params) (cdr-assoc "SNR" params)
+	       (cdr-assoc "FROM" params) (cdr-assoc "TO" params) (parse-integer
+								  (cdr-assoc "EXTRA" params) :junk-allowed t)
+	       (cdr-assoc "DIAL" params)
+	       (cdr-assoc "OFFSET" params)
+	       (+ (cdr-assoc "DIAL" params)
+		  (cdr-assoc "OFFSET" params))
+	       (cdr-assoc "GRID" params)
+	       (nth (cdr-assoc "SPEED" params) *speed*)
+	       (round (* 1000.0 (cdr-assoc "TDRIFT" params)))
+	       (cdr-assoc "TEXT" params)
+	       (if (and (gethash (cdr-assoc "FROM" params) *grids*)
+			(gethash (cdr-assoc "TO" params) *grids*))
+		   (call-distance (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
+		   "")
+	       (if (and (gethash (cdr-assoc "FROM" params) *grids*)
+			(gethash (cdr-assoc "TO" params) *grids*))
+		   (call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params))
+		   "")
+	       (if (and (gethash (cdr-assoc "FROM" params) *grids*)
+			(gethash (cdr-assoc "TO" params) *grids*))
+		   (af:deg-to-cardinal-course
+		    (call-bearing (cdr-assoc "FROM" params) (cdr-assoc "TO" params)))
+		   "")))
       ((equal "TX.FRAME" type)
        (format t "----- TX.FRAME -----~%Time: ~A~%Tones: ~A~%~%"
 	       (unix-to-timestamp timestamp)
