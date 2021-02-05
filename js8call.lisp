@@ -438,21 +438,22 @@ have to hit <return> on the keyboard to send."
       (send-text
        (concatenate 'string "@HB HEARTBEAT " (subseq *grid* 0 4))))))
 
-(defun query-messages ()
-  (send-text "@ALLCALL QUERY MSGS"))
+(defun query-messages (&optional (dest-call "@ALLCALL"))
+  (send-text
+   (format nil "~A QUERY MSGS" dest-call)))
 
-(defun send-sms (phone message)
+(defun send-sms (phone message &optional (dest-call "@APRSIS"))
   (bt:with-lock-held (*sequence-lock*)
     (send-text
-     (format nil "@APRSIS CMD :SMSGTE  :@~A ~A{~3,'0D}"
-	     phone message
+     (format nil "~A CMD :SMSGTE  :@~A ~A{~3,'0D}"
+	     dest-call phone message
 	     (incf *sequence*)))))
 
-(defun send-email (address message)
+(defun send-email (address message &optional (dest-call "@APRSIS"))
   (bt:with-lock-held (*sequence-lock*)
     (send-text
-     (format nil "@APRSIS CMD :EMAIL-2  :~A ~A{~3,'0D}"
-	     address message
+     (format nil "~A CMD :EMAIL-2  :~A ~A{~3,'0D}"
+	     dest-call address message
 	     (incf *sequence*)))))
 
 (defun send-directed-message (dest-call message)
