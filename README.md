@@ -103,6 +103,4 @@ SNR: -11
 ...
 ```
 
-If you just want to watch data as it comes in, run (watch-traffic t).
-
 Jeff/N0GQ
