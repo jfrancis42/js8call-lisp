@@ -6,8 +6,8 @@
 
 ;; Chatty setting.
 (defvar *verbose* nil)
-(defvar *suppress-activity* t)
-(defvar *suppress-heartbeat* t)
+(defvar *suppress-activity* nil)
+(defvar *suppress-heartbeat* nil)
 
 ;; Globals for my station.
 (defvar *my-grid* nil)

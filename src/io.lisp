@@ -1,5 +1,7 @@
 ;;;; io.lisp
 
+(in-package #:js8call)
+
 ;; Internal log global and lock.
 (defvar *log-lock* (bt:make-lock))
 (defvar *log-json* nil)

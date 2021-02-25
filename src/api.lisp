@@ -1,5 +1,7 @@
 ;;;; api.lisp
 
+(in-package #:js8call)
+
 ;; Queues and locks for tx/rx queues.
 (defvar *tx-queue-lock* (bt:make-lock))
 (defvar *rx-queue-lock* (bt:make-lock))

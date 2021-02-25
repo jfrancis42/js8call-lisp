@@ -1,5 +1,7 @@
 ;;;; queries.lisp
 
+(in-package #:js8call)
+
 ;; This is the global counter for @APRSIS messages.
 (defvar *sequence* 0)
 (defvar *sequence-lock* (bt:make-lock))

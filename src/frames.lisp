@@ -1,5 +1,7 @@
 ;;;; frames.lisp
 
+(in-package #:js8call)
+
 ; (get-frame-type "RX.DIRECTED" (get-log))
 (defun get-frame-type (type frames)
   "Return all received messages of the specified type."
