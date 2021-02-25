@@ -5,6 +5,10 @@
 ;; Available modem speeds.
 (defvar *speed* (list :normal :fast :turbo :invalid :slow))
 
+;; Special JS8Call characters.
+(defparameter *eom* "♢")
+(defparameter *missing* "…")
+
 (defun ten-digit-maidenhead (latitude longitude)
   "Horrifically hacky 10-digit Maidenhead implementation (because I
 couldn't find one in CL to steal)."
