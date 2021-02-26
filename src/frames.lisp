@@ -49,7 +49,8 @@
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
   (when (frame-value f)
     (format t "Value: ~A~%" (frame-value f)))
-  (format t "ID: ~A~%" (frame-id f))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
   (format t "Tones: ~A~%" (frame-tones f))
   (format t "~%"))
 
@@ -79,7 +80,8 @@
   "Print a STATION.GRID frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
-  (format t "ID: ~A~%" (frame-id f))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
   (format t "Grid: ~A~%" (frame-grid f))
   (format t "~%"))
 
@@ -109,7 +111,8 @@
   "Print a STATION.CALLSIGN frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
-  (format t "ID: ~A~%" (frame-id f))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
   (format t "Call: ~A~%" (frame-call f))
   (format t "~%"))
 
@@ -139,7 +142,8 @@
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
   (when (frame-value f)
     (format t "Value: ~A~%" (frame-value f)))
-  (format t "ID: ~A~%" (frame-id f))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
   (format t "PTT: ~A~%" (frame-ptt f))
   (format t "~%"))
 
@@ -182,7 +186,8 @@
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
   (when (frame-value f)
     (format t "Value: ~A~%" (frame-value f)))
-  (format t "ID: ~A~%" (frame-id f))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
   (format t "Dial Freq: ~,3F khz~%" (frame-dial-freq f))
   (format t "Offset: ~A hz~%" (round (* 1000 (frame-offset f))))
   (format t "TX Freq: ~,3F khz~%" (frame-freq f))
@@ -225,13 +230,16 @@
     (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
     (when (frame-value f)
       (format t "Value: ~A~%" (frame-value f)))
-    (format t "ID: ~A~%" (frame-id f))
+    (unless *suppress-id*
+      (format t "ID: ~A~%" (frame-id f)))
     (format t "Dial Freq: ~,3F khz~%" (frame-dial-freq f))
     (format t "Offset: ~A hz~%" (round (* 1000 (frame-offset f))))
     (format t "TX Freq: ~,3F khz~%" (frame-freq f))
     (format t "Call: ~A~%" (frame-call f))
     (format t "Grid: ~A~%" (frame-grid f))
-    (format t "SNR: ~A~%" (frame-snr f))
+    (if *print-snr-correctly*
+	(format t "SNR: ~A:1~%" (frame-snr f))
+	(format t "SNR: ~A~%" (frame-snr f)))
     (format t "~%")))
 
 ;; Class for a RX.ACTIVITY frame.
@@ -267,11 +275,14 @@
     (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
     (when (frame-value f)
       (format t "Value: ~A~%" (frame-value f)))
-    (format t "ID: ~A~%" (frame-id f))
+    (unless *suppress-id*
+      (format t "ID: ~A~%" (frame-id f)))
     (format t "Dial Freq: ~,3F khz~%" (frame-dial-freq f))
     (format t "Offset: ~A hz~%" (round (* 1000 (frame-offset f))))
     (format t "TX Freq: ~,3F khz~%" (frame-freq f))
-    (format t "SNR: ~A~%" (frame-snr f))
+    (if *print-snr-correctly*
+	(format t "SNR: ~A:1~%" (frame-snr f))
+	(format t "SNR: ~A~%" (frame-snr f)))
     (format t "Speed: ~A~%" (nth (frame-speed f) *speed*))
     (format t "Drift: ~A ms~%" (frame-drift f))
     (format t "~%")))
@@ -347,13 +358,18 @@
 		   (equal "HEARTBEAT SNR" (frame-cmd f))))
     (format t "Type: ~A~%" (frame-type f))
     (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
-    (when (frame-value f)
-      (format t "Value: ~A~%" (frame-value f)))
-    (format t "ID: ~A~%" (frame-id f))
+;;; 'value' and 'text' are the same with an RX.DIRECTED frame, so no
+;;; point in printing both.
+;;;    (when (frame-value f)
+;;;      (format t "Value: ~A~%" (frame-value f)))
+    (unless *suppress-id*
+      (format t "ID: ~A~%" (frame-id f)))
     (format t "Dial Freq: ~,3F khz~%" (frame-dial-freq f))
     (format t "Offset: ~A hz~%" (round (* 1000 (frame-offset f))))
     (format t "TX Freq: ~,3F khz~%" (frame-freq f))
-    (format t "SNR: ~A~%" (frame-snr f))
+    (if *print-snr-correctly*
+	(format t "SNR: ~A:1~%" (frame-snr f))
+	(format t "SNR: ~A~%" (frame-snr f)))
     (format t "Speed: ~A~%" (nth (frame-speed f) *speed*))
     (format t "Drift: ~A ms~%" (frame-drift f))
     (when (frame-grid f)

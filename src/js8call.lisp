@@ -4,10 +4,12 @@
 
 (setf *read-default-float-format* 'double-float)
 
-;; Chatty setting.
+;; Chatty settings.
 (defvar *verbose* nil)
+(defvar *suppress-id* t)
 (defvar *suppress-activity* nil)
 (defvar *suppress-heartbeat* nil)
+(defvar *print-snr-correctly* nil)
 
 ;; Globals for my station.
 (defvar *my-grid* nil)
