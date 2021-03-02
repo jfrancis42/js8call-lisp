@@ -9,6 +9,26 @@
 (defparameter *eom* "♢")
 (defparameter *missing* "…")
 
+(defun band (freq)
+  "Given a frequency in khz, return the ham band. Works between 160m
+and 70cm."
+  (cond
+    ((and (>= freq 1800) (<= freq 2000)) :160m)
+    ((and (>= freq 3500) (<= freq 4000)) :80m)
+    ((and (>= freq 5330) (<= freq 5410)) :60m)
+    ((and (>= freq 7000) (<= freq 7300)) :40m)
+    ((and (>= freq 10100) (<= freq 10150)) :30m)
+    ((and (>= freq 14000) (<= freq 14350)) :20m)
+    ((and (>= freq 17068) (<= freq 17168)) :17m)
+    ((and (>= freq 21000) (<= freq 21450)) :15m)
+    ((and (>= freq 24890) (<= freq 24990)) :12m)
+    ((and (>= freq 28000) (<= freq 29700)) :10m)
+    ((and (>= freq 50000) (<= freq 54000)) :6m)
+    ((and (>= freq 144000) (<= freq 148000)) :2m)
+    ((and (>= freq 219000) (<= freq 225000)) :1.25m)
+    ((and (>= freq 420000) (<= freq 450000)) :70cm)
+    (t nil)))
+
 (defun ten-digit-maidenhead (latitude longitude)
   "Horrifically hacky 10-digit Maidenhead implementation (because I
 couldn't find one in CL to steal)."

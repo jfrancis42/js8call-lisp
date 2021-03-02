@@ -13,6 +13,7 @@
 	       #:flexi-streams
 	       #:cl-ppcre
 	       #:jeffutils
+	       #:aviation-formulary
 	       #:jsown)
   :components ((:file "src/package")
                (:file "src/js8call")

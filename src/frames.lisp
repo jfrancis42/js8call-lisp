@@ -74,6 +74,7 @@
 
 (defmethod process-frame ((f station-grid-frame))
   "Do any necessary processing on a STATION.GRID frame."
+  (new-grid *my-call* (frame-grid f) (type-of f))
   (setf *my-grid* (frame-grid f)))
 
 (defmethod frame-print ((f station-grid-frame))
@@ -153,6 +154,41 @@
    (frame-freq :accessor frame-freq :initarg :frame-freq :initform nil)
    (frame-offset :accessor frame-offset :initarg :frame-offset :initform nil)))
 
+;; Class for a RIG.FREQ frame.
+(defclass rig-freq-frame (rx-frame)
+  ())
+
+(defun make-rig-freq-frame (thing)
+  "Make a RIG.FREQ object from the JSON."
+  (make-instance 'station-status-frame
+		 :frame-type (clean-string (jsown:val thing "type"))
+		 :frame-value (if (equal "" (jsown:val thing "value"))
+				  nil
+				  (clean-string (jsown:val thing "value")))
+		 :frame-id (get-param thing "_ID")
+		 :frame-timestamp (jsown:val thing "TIMESTAMP")
+		 :frame-dial-freq (/ (get-param thing "DIAL") 1000.0)
+		 :frame-freq (/ (get-param thing "FREQ") 1000.0)
+		 :frame-offset (/ (get-param thing "OFFSET") 1000.0)
+		 :frame-raw (jsown:val thing "RAW")))
+
+(defmethod process-frame ((f rig-freq-frame))
+  "Do any necessary processing on a RIG.FREQ frame."
+  t)
+
+(defmethod frame-print ((f rig-freq-frame))
+  "Print a STATION.STATUS frame."
+  (format t "Type: ~A~%" (frame-type f))
+  (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
+  (when (frame-value f)
+    (format t "Value: ~A~%" (frame-value f)))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
+  (format t "Dial Freq: ~,3F khz~%" (frame-dial-freq f))
+  (format t "Offset: ~A hz~%" (round (* 1000 (frame-offset f))))
+  (format t "TX Freq: ~,3F khz~%" (frame-freq f))
+  (format t "~%"))
+
 ;; Class for a STATION.STATUS frame.
 (defclass station-status-frame (rx-frame)
   ((frame-selected :accessor frame-selected :initarg :frame-selected :initform nil)
@@ -221,6 +257,8 @@
 
 (defmethod process-frame ((f rx-spot-frame))
   "Do any necessary processing on a RX.SPOT frame."
+  (new-grid (frame-call f) (frame-grid f) (type-of f))
+  (new-qso (frame-call f) *my-call* (frame-snr f) nil (frame-freq f) nil (type-of f))
   t)
 
 (defmethod frame-print ((f rx-spot-frame))
@@ -294,6 +332,7 @@
    (frame-from :accessor frame-from :initarg :frame-from :initform nil)
    (frame-grid :accessor frame-grid :initarg :frame-grid :initform nil)
    (frame-snr :accessor frame-snr :initarg :frame-snr :initform nil)
+   (frame-overheard-snr :accessor frame-overheard-snr :initarg :frame-overheard-snr :initform nil)
    (frame-speed :accessor frame-speed :initarg :frame-speed :initform nil)
    (frame-drift :accessor frame-drift :initarg :frame-drift :initform nil)
    (frame-text :accessor frame-text :initarg :frame-text :initform nil)
@@ -312,11 +351,19 @@
 		 :frame-freq (/ (get-param thing "FREQ") 1000.0)
 		 :frame-offset (/ (get-param thing "OFFSET") 1000.0)
 		 :frame-snr (get-param thing "SNR")
+		 :frame-overheard-snr (if (or (equal "SNR" (clean-string (get-param thing "CMD")))
+					      (equal "HEARTBEAT SNR" (clean-string (get-param thing "CMD"))))
+					  (parse-integer (clean-string (get-param thing "EXTRA")))
+					  nil)
 		 :frame-speed (get-param thing "SPEED")
 		 :frame-drift (round (* (get-param thing "TDRIFT") 1000.0))
-		 :frame-grid (if (equal "" (get-param thing "GRID"))
+		 :frame-grid (if (equal "GRID" (clean-string (get-param thing "CMD")))
+				 (nth 3
+				      (split-sequence:split-sequence
+				       #\Space (clean-string (get-param thing "TEXT"))))
+				 (if (equal "" (get-param thing "GRID"))
 				     nil
-				     (clean-string (get-param thing "GRID")))
+				     (clean-string (get-param thing "GRID"))))
 		 :frame-cmd (clean-string (get-param thing "CMD"))
 		 :frame-extra (if (equal "" (get-param thing "EXTRA"))
 				     nil
@@ -326,30 +373,11 @@
 		 :frame-text (clean-string (get-param thing "TEXT"))
 		 :frame-raw (jsown:val thing "RAW")))
 
-(defmethod process-frame ((f rx-directed-frame)) ;; xxx
+(defmethod process-frame ((f rx-directed-frame))
   "Do any necessary processing on a RX.DIRECTED frame."
-  (let ((msg nil))
-    (bt:with-lock-held (*log-lock*)
-      (setf msg nil)
-      (setf (jsown:val msg "type") "HEARD.SNR")
-      (setf (jsown:val msg "TIMESTAMP") (frame-timestamp f))
-      (setf (jsown:val msg "FREQ") (frame-freq f))
-      (setf (jsown:val msg "SPEED") (frame-speed f))
-      (setf (jsown:val msg "FROM") (frame-from f))
-      (setf (jsown:val msg "TO") (frame-to f))
-      (setf (jsown:val msg "SNR") (frame-snr f))
-      (setf *log-json* (cons (jsown:to-json msg) *log-json*))
-      (when (frame-grid f)
-	(setf msg nil)
-	(setf (jsown:val msg "type") "HEARD.GRID")
-	(setf (jsown:val msg "TIMESTAMP") (frame-timestamp f))
-	(setf (jsown:val msg "FREQ") (frame-freq f))
-	(setf (jsown:val msg "SPEED") (frame-speed f))
-	(setf (jsown:val msg "FROM") (frame-from f))
-	(setf (jsown:val msg "TO") (frame-to f))
-	(setf (jsown:val msg "GRID") (frame-grid f))
-	(setf *log-json* (cons (jsown:to-json msg) *log-json*)))
-      )))
+  (new-grid (frame-from f) (frame-grid f) (type-of f))
+  (new-qso (frame-from f) (frame-to f) (frame-snr f) (frame-overheard-snr f) (frame-freq f) (frame-speed f) (type-of f))
+  t)
 
 (defmethod frame-print ((f rx-directed-frame))
   "Print a RX.DIRECTED frame."
@@ -370,6 +398,8 @@
     (if *print-snr-correctly*
 	(format t "SNR: ~A:1~%" (frame-snr f))
 	(format t "SNR: ~A~%" (frame-snr f)))
+    (when (frame-overheard-snr f)
+      (format t "Their SNR: ~A~%" (frame-overheard-snr f)))
     (format t "Speed: ~A~%" (nth (frame-speed f) *speed*))
     (format t "Drift: ~A ms~%" (frame-drift f))
     (when (frame-grid f)
@@ -395,6 +425,8 @@
        (setf frame (make-tx-frame thing)))
       ((equal "STATION.STATUS" type)
        (setf frame (make-station-status-frame thing)))
+      ((equal "RIG.FREQ" type)
+       (setf frame (make-rig-freq-frame thing)))
       ((equal "RIG.PTT" type)
        (setf frame (make-rig-ptt-frame thing)))
       ((equal "RX.DIRECTED" type)
@@ -404,7 +436,7 @@
       ((equal "RX.ACTIVITY" type)
        (setf frame (make-rx-activity-frame thing)))
       (t
-       (format t "~%----------------~%~A----------------~%~%" thing)))
+       (format t "~%----------------~%~A~%----------------~%~%" thing)))
     (process-frame frame)
     frame))
 
