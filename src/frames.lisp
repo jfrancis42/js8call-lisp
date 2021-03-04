@@ -39,11 +39,23 @@
 		 :frame-tones (get-param thing "TONES")
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f tx-frame))
+  "Serialize a tx-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "tones") (frame-tones f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f tx-frame))
   "Do any necessary processing on a TX.FRAME frame."
   t)
 
-(defmethod frame-print ((f tx-frame))
+(defmethod pp ((f tx-frame))
   "Print a TX.FRAME frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -72,12 +84,25 @@
 				 (clean-string (jsown:val thing "value")))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f station-grid-frame))
+  "Serialize a station-grid-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (when (frame-grid f)
+      (setf (jsown:val json "grid") (frame-grid f)))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f station-grid-frame))
   "Do any necessary processing on a STATION.GRID frame."
   (new-grid *my-call* (frame-grid f) (type-of f))
   (setf *my-grid* (frame-grid f)))
 
-(defmethod frame-print ((f station-grid-frame))
+(defmethod pp ((f station-grid-frame))
   "Print a STATION.GRID frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -104,11 +129,24 @@
 				 (clean-string (jsown:val thing "value")))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f station-callsign-frame))
+  "Serialize a station-callsign-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f station-callsign-frame))
   "Do any necessary processing on a STATION.CALLSIGN frame."
   (setf *my-call* (frame-call f)))
 
-(defmethod frame-print ((f station-callsign-frame))
+(defmethod pp ((f station-callsign-frame))
   "Print a STATION.CALLSIGN frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -133,11 +171,23 @@
 		 :frame-ptt (clean-string (get-param thing "PTT"))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f rig-ptt-frame))
+  "Serialize a rig-ptt-callsign-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "ptt") (frame-ptt f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f rig-ptt-frame))
   "Do any necessary processing on a RIG.PTT frame."
   t)
 
-(defmethod frame-print ((f rig-ptt-frame))
+(defmethod pp ((f rig-ptt-frame))
   "Print a RIG.PTT frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -172,11 +222,25 @@
 		 :frame-offset (/ (get-param thing "OFFSET") 1000.0)
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f rig-freq-frame))
+  "Serialize a rig-freq-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "dial-freq") (frame-dial-freq f))
+    (setf (jsown:val json "freq") (frame-freq f))
+    (setf (jsown:val json "offset") (frame-offset f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f rig-freq-frame))
   "Do any necessary processing on a RIG.FREQ frame."
   t)
 
-(defmethod frame-print ((f rig-freq-frame))
+(defmethod pp ((f rig-freq-frame))
   "Print a STATION.STATUS frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -212,11 +276,28 @@
 		 :frame-speed (get-param thing "SPEED")
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f station-status-frame))
+  "Serialize a station-status-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "dial-freq") (frame-dial-freq f))
+    (setf (jsown:val json "freq") (frame-freq f))
+    (setf (jsown:val json "offset") (frame-offset f))
+    (when (frame-selected f)
+      (setf (jsown:val json "selected") (frame-selected f)))
+    (setf (jsown:val json "speed") (frame-speed f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f station-status-frame))
   "Do any necessary processing on a STATION.STATUS frame."
   t)
 
-(defmethod frame-print ((f station-status-frame))
+(defmethod pp ((f station-status-frame))
   "Print a STATION.STATUS frame."
   (format t "Type: ~A~%" (frame-type f))
   (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
@@ -255,13 +336,30 @@
 		 :frame-snr (get-param thing "SNR")
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f rx-spot-frame))
+  "Serialize a rx-spot-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "dial-freq") (frame-dial-freq f))
+    (setf (jsown:val json "freq") (frame-freq f))
+    (setf (jsown:val json "offset") (frame-offset f))
+    (setf (jsown:val json "call") (frame-call f))
+    (setf (jsown:val json "grid") (frame-grid f))
+    (setf (jsown:val json "snr") (frame-snr f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f rx-spot-frame))
   "Do any necessary processing on a RX.SPOT frame."
   (new-grid (frame-call f) (frame-grid f) (type-of f))
-  (new-qso (frame-call f) *my-call* (frame-snr f) nil (frame-freq f) nil (type-of f))
+  (new-qso (frame-call f) *my-call* (frame-snr f) nil (frame-freq f) nil nil (type-of f))
   t)
 
-(defmethod frame-print ((f rx-spot-frame))
+(defmethod pp ((f rx-spot-frame))
   "Print a RX.SPOT frame."
   (unless *suppress-heartbeat*
     (format t "Type: ~A~%" (frame-type f))
@@ -302,11 +400,28 @@
 		 :frame-drift (round (* (get-param thing "TDRIFT") 1000.0))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f rx-activity-frame))
+  "Serialize a rx-activity-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "dial-freq") (frame-dial-freq f))
+    (setf (jsown:val json "freq") (frame-freq f))
+    (setf (jsown:val json "offset") (frame-offset f))
+    (setf (jsown:val json "snr") (frame-snr f))
+    (setf (jsown:val json "speed") (frame-speed f))
+    (setf (jsown:val json "drift") (frame-drift f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f rx-activity-frame))
   "Do any necessary processing on a RX.ACTIVITY frame."
   t)
 
-(defmethod frame-print ((f rx-activity-frame))
+(defmethod pp ((f rx-activity-frame))
   "Print a RX.ACTIVITY frame."
   (unless *suppress-activity*
     (format t "Type: ~A~%" (frame-type f))
@@ -353,7 +468,8 @@
 		 :frame-snr (get-param thing "SNR")
 		 :frame-overheard-snr (if (or (equal "SNR" (clean-string (get-param thing "CMD")))
 					      (equal "HEARTBEAT SNR" (clean-string (get-param thing "CMD"))))
-					  (parse-integer (clean-string (get-param thing "EXTRA")))
+					  (unless (equal "" (clean-string (get-param thing "EXTRA")))
+					    (parse-integer (clean-string (get-param thing "EXTRA"))))
 					  nil)
 		 :frame-speed (get-param thing "SPEED")
 		 :frame-drift (round (* (get-param thing "TDRIFT") 1000.0))
@@ -373,13 +489,40 @@
 		 :frame-text (clean-string (get-param thing "TEXT"))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod serialize ((f rx-directed-frame))
+  "Serialize a rx-directed-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "dial-freq") (frame-dial-freq f))
+    (setf (jsown:val json "freq") (frame-freq f))
+    (setf (jsown:val json "offset") (frame-offset f))
+    (setf (jsown:val json "snr") (frame-snr f))
+    (when (frame-overheard-snr f)
+      (setf (jsown:val json "overheard-snr") (frame-overheard-snr f)))
+    (setf (jsown:val json "speed") (frame-speed f))
+    (setf (jsown:val json "drift") (frame-drift f))
+    (when (frame-grid f)
+      (setf (jsown:val json "grid") (frame-grid f)))
+    (setf (jsown:val json "cmd") (frame-cmd f))
+    (when (frame-extra f)
+      (setf (jsown:val json "extra") (frame-extra f)))
+    (setf (jsown:val json "from") (frame-from f))
+    (setf (jsown:val json "to") (frame-to f))
+    (setf (jsown:val json "text") (frame-text f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
 (defmethod process-frame ((f rx-directed-frame))
   "Do any necessary processing on a RX.DIRECTED frame."
   (new-grid (frame-from f) (frame-grid f) (type-of f))
-  (new-qso (frame-from f) (frame-to f) (frame-snr f) (frame-overheard-snr f) (frame-freq f) (frame-speed f) (type-of f))
+  (new-qso (frame-from f) (frame-to f) (frame-snr f) (frame-overheard-snr f) (frame-freq f) (frame-speed f) (frame-text f)(type-of f))
   t)
 
-(defmethod frame-print ((f rx-directed-frame))
+(defmethod pp ((f rx-directed-frame))
   "Print a RX.DIRECTED frame."
   (unless (and *suppress-heartbeat*
 	       (or (equal "HEARTBEAT" (frame-cmd f))

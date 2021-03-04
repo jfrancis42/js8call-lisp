@@ -32,9 +32,29 @@
    (qso-overheard-snr :accessor qso-overheard-snr :initarg :qso-overheard-snr :initform nil)
    (qso-freq :accessor qso-freq :initarg :qso-freq :initform nil)
    (qso-his-speed :accessor qso-his-speed :initarg :qso-his-speed :initform nil)
+   (qso-text :accessor qso-text :initarg :qso-text :initform nil)
    (qso-source :accessor qso-source :initarg :qso-source :initform nil)))
 
-(defun make-qso (from to snr overheard-snr freq his-speed frame-type)
+(defmethod pp ((q qso))
+  "Print a QSO object."
+  (format t "Time: ~A~%" (local-time:unix-to-timestamp (qso-timestamp q)))
+  (format t "From: ~A~%" (qso-from q))
+  (format t "To: ~A~%" (qso-to q))
+  (if *print-snr-correctly*
+      (format t "SNR: ~A:1~%" (qso-snr q))
+      (format t "SNR: ~A~%" (qso-snr q)))
+  (when (qso-overheard-snr q)
+    (if *print-snr-correctly*
+	(format t "SNR Reported: ~A:1~%" (qso-overheard-snr q))
+	(format t "SNR Reported: ~A~%" (qso-overheard-snr q))))
+  (format t "TX Freq: ~,3F khz~%" (qso-freq q))
+  (when (qso-his-speed q)
+    (format t "Speed: ~A~%" (nth (qso-his-speed q) *speed*)))
+  (format t "Text: ~A~%" (qso-text q))
+  (format t "Source: ~A~%" (qso-source q))
+  (format t "~%"))
+
+(defun make-qso (from to snr overheard-snr freq his-speed text frame-type)
   "Make a QSO object from the relevant info."
   (make-instance 'qso
 		 :qso-timestamp (local-time:timestamp-to-unix (local-time:now))
@@ -44,12 +64,13 @@
 		 :qso-overheard-snr overheard-snr
 		 :qso-freq freq
 		 :qso-his-speed his-speed
+		 :qso-text text
 		 :qso-source frame-type))
 
-(defun new-qso (from to snr overheard-snr freq his-speed frame-type)
+(defun new-qso (from to snr overheard-snr freq his-speed text frame-type)
   "Add a QSO to the list."
   (bt:with-lock-held (*qso-lock*)
-    (setf *log-qso* (cons (make-qso from to snr overheard-snr freq his-speed frame-type) *log-qso*))))
+    (setf *log-qso* (cons (make-qso from to snr overheard-snr freq his-speed text frame-type) *log-qso*))))
 
 (defmethod serialize ((q qso))
   "Serialize a qso object to JSON."
@@ -62,8 +83,17 @@
       (setf (jsown:val json "overheard-snr") (qso-overheard-snr q)))
     (setf (jsown:val json "freq") (qso-freq q))
     (setf (jsown:val json "his-speed") (qso-his-speed q))
+    (setf (jsown:val json "text") (qso-text q))
     (setf (jsown:val json "source") (qso-source q))
     (jsown:to-json json)))
+
+(defun find-qso (c1 c2)
+  "Find all messages between two stations."
+  (remove-if-not
+   (lambda (q)
+     (or (and (equal c1 (qso-from q)) (equal c2 (qso-to q)))
+	 (and (equal c1 (qso-to q)) (equal c2 (qso-from q)))))
+   *log-qso*))
 
 ;; This class holds information about what time and what grid a
 ;; specific callsign reported itself to be in.
@@ -120,7 +150,7 @@
      (lambda (a)
        (mapcar
 	(lambda (b)
-	  (when (and ;(<= (abs (- (qso-timestamp a) (qso-timestamp b))) 120)
+	  (when (and (<= (abs (- (qso-timestamp a) (qso-timestamp b))) 180)
 		     (equal (qso-from a) (qso-to b))
 		     (equal (qso-to a) (qso-from b)))
 	    (setf matches (cons (cons a b) matches))))

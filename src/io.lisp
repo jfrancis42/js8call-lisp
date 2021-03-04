@@ -14,10 +14,10 @@ loop forever."
 	 (if (jeff:queue-empty-p *rx-q*)
 	     (sleep 0.1)
 	     (bt:with-lock-held (*rx-queue-lock*)
-	       (frame-print (jeff:dequeue *rx-q*)))))
+	       (pp (jeff:dequeue *rx-q*)))))
       (mapcar
        (lambda (n)
-	 (frame-print n))
+	 (pp n))
        (bt:with-lock-held
 	   (*rx-queue-lock*) (jeff:queue-items *rx-q*))))
   t)
