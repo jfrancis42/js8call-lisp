@@ -32,6 +32,13 @@ loop forever."
   "Read back the JSON log file."
   (jsown:parse (jeff:file-string fname)))
 
+(defun dequeue-and-print-one-frame ()
+  (let ((frame nil))
+    (pp
+     (bt:with-lock-held (*rx-queue-lock*)
+       (setf frame (jeff:dequeue *rx-q*))))
+    frame))
+
 ;;; Local Variables:
 ;;; mode: Lisp
 ;;; coding: utf-8

@@ -9,11 +9,14 @@
 (defvar *suppress-id* t)
 (defvar *suppress-activity* nil)
 (defvar *suppress-heartbeat* nil)
+(defvar *suppress-cq* nil)
 (defvar *print-snr-correctly* nil)
 
 ;; Globals for my station.
 (defvar *my-grid* nil)
 (defvar *my-call* nil)
+(defvar *js8-host* "localhost")
+(defvar *js8-port* 2442)
 
 ;; Stuff
 (defvar *qso-lock* (bt:make-lock))
@@ -21,6 +24,16 @@
 (defvar *grid-lock* (bt:make-lock))
 (defvar *log-grid* nil)
 
+(defun loud ()
+  (setf *suppress-activity* nil)
+  (setf *suppress-heartbeat* nil)
+  (setf *suppress-cq* nil))
+  
+(defun quiet ()
+  (setf *suppress-activity* t)
+  (setf *suppress-heartbeat* t)
+  (setf *suppress-cq* t))
+  
 ;; This class holds information about observed transmissions between
 ;; one station and another. It implies nothing with respect to whether
 ;; or not bi-directional communications was achieved.
@@ -53,6 +66,9 @@
   (format t "Text: ~A~%" (qso-text q))
   (format t "Source: ~A~%" (qso-source q))
   (format t "~%"))
+
+(defmethod complete? ((q qso))
+  (not (search *missing* (qso-text q))))
 
 (defun make-qso (from to snr overheard-snr freq his-speed text frame-type)
   "Make a QSO object from the relevant info."
@@ -89,11 +105,13 @@
 
 (defun find-qso (c1 c2)
   "Find all messages between two stations."
-  (remove-if-not
-   (lambda (q)
-     (or (and (equal c1 (qso-from q)) (equal c2 (qso-to q)))
-	 (and (equal c1 (qso-to q)) (equal c2 (qso-from q)))))
-   *log-qso*))
+  (let ((call-1 (clean (string-upcase c1)))
+	(call-2 (clean (string-upcase c2))))
+    (remove-if-not
+     (lambda (q)
+       (or (and (equal call-1 (qso-from q)) (equal call-2 (qso-to q)))
+	   (and (equal call-1 (qso-to q)) (equal call-2 (qso-from q)))))
+     *log-qso*)))
 
 ;; This class holds information about what time and what grid a
 ;; specific callsign reported itself to be in.

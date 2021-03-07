@@ -23,6 +23,89 @@
    (frame-timestamp :accessor frame-timestamp :initarg :frame-timestamp :initform nil)
    (frame-raw :accessor frame-raw :initarg :frame-raw :initform nil)))
 
+;; Class for a STATION.INFO frame
+(defclass info-frame (js8-frame)
+  ())
+
+(defun make-info-frame (thing)
+  "Make a STATION.INFO object from the JSON."
+  (make-instance 'info-frame
+		 :frame-type (clean-string (jsown:val thing "type"))
+		 :frame-value (if (equal "" (jsown:val thing "value"))
+				  nil
+				  (clean-string (jsown:val thing "value")))
+		 :frame-id (get-param thing "_ID")
+		 :frame-timestamp (jsown:val thing "TIMESTAMP")
+		 :frame-raw (jsown:val thing "RAW")))
+
+(defmethod serialize ((f info-frame))
+  "Serialize a info-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
+(defmethod process-frame ((f info-frame))
+  "Do any necessary processing on a STATION.INFO frame."
+  t)
+
+(defmethod pp ((f info-frame))
+  "Print a STATION.INFO frame."
+  (format t "Type: ~A~%" (frame-type f))
+  (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
+  (when (frame-value f)
+    (format t "Value: ~A~%" (frame-value f)))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
+  (format t "~%"))
+
+;; Class for a MODE.SPEED frame
+(defclass mode-speed-frame (js8-frame)
+  ((frame-speed :accessor frame-speed :initarg :frame-speed :initform nil)))
+
+(defun make-mode-speed-frame (thing)
+  "Make a MODE.SPEED object from the JSON."
+  (make-instance 'mode-speed-frame
+		 :frame-type (clean-string (jsown:val thing "type"))
+		 :frame-value (if (equal "" (jsown:val thing "value"))
+				  nil
+				  (clean-string (jsown:val thing "value")))
+		 :frame-id (get-param thing "_ID")
+		 :frame-timestamp (jsown:val thing "TIMESTAMP")
+		 :frame-speed (get-param thing "SPEED")
+		 :frame-raw (jsown:val thing "RAW")))
+
+(defmethod serialize ((f mode-speed-frame))
+  "Serialize a info-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "id") (frame-id f))
+    (setf (jsown:val json "timestamp") (frame-timestamp f))
+    (setf (jsown:val json "speed") (frame-speed f))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
+(defmethod process-frame ((f mode-speed-frame))
+  "Do any necessary processing on a MODE.SPEED frame."
+  t)
+
+(defmethod pp ((f mode-speed-frame))
+  "Print a MODE.SPEED frame."
+  (format t "Type: ~A~%" (frame-type f))
+  (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
+  (when (frame-value f)
+    (format t "Value: ~A~%" (frame-value f)))
+  (unless *suppress-id*
+    (format t "ID: ~A~%" (frame-id f)))
+  (format t "Speed: ~A~%" (nth (frame-speed f) *speed*))
+  (format t "~%"))
+
 ;; Class for a TX.FRAME
 (defclass tx-frame (js8-frame)
   ((frame-tones :accessor frame-tones :initarg :frame-tones :initform nil)))
@@ -33,7 +116,7 @@
 		 :frame-type (clean-string (jsown:val thing "type"))
 		 :frame-value (if (equal "" (jsown:val thing "value"))
 				  nil
-				  (string-trim (jsown:val thing "value")))
+				  (clean-string (jsown:val thing "value")))
 		 :frame-id (get-param thing "_ID")
 		 :frame-timestamp (jsown:val thing "TIMESTAMP")
 		 :frame-tones (get-param thing "TONES")
@@ -210,7 +293,7 @@
 
 (defun make-rig-freq-frame (thing)
   "Make a RIG.FREQ object from the JSON."
-  (make-instance 'station-status-frame
+  (make-instance 'rig-freq-frame
 		 :frame-type (clean-string (jsown:val thing "type"))
 		 :frame-value (if (equal "" (jsown:val thing "value"))
 				  nil
@@ -489,6 +572,9 @@
 		 :frame-text (clean-string (get-param thing "TEXT"))
 		 :frame-raw (jsown:val thing "RAW")))
 
+(defmethod complete? ((f rx-directed-frame))
+  (not (search *missing* (frame-text f))))
+
 (defmethod serialize ((f rx-directed-frame))
   "Serialize a rx-directed-frame object to JSON."
   (let ((json nil))
@@ -524,9 +610,11 @@
 
 (defmethod pp ((f rx-directed-frame))
   "Print a RX.DIRECTED frame."
-  (unless (and *suppress-heartbeat*
-	       (or (equal "HEARTBEAT" (frame-cmd f))
-		   (equal "HEARTBEAT SNR" (frame-cmd f))))
+  (unless (or (and *suppress-heartbeat*
+		   (or (equal "HEARTBEAT" (frame-cmd f))
+		       (equal "HEARTBEAT SNR" (frame-cmd f))))
+	      (and *suppress-cq*
+		   (or (equal "CQ" (frame-cmd f)))))
     (format t "Type: ~A~%" (frame-type f))
     (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
 ;;; 'value' and 'text' are the same with an RX.DIRECTED frame, so no
@@ -568,6 +656,10 @@
        (setf frame (make-tx-frame thing)))
       ((equal "STATION.STATUS" type)
        (setf frame (make-station-status-frame thing)))
+      ((equal "STATION.INFO" type)
+       (setf frame (make-info-frame thing)))
+      ((equal "MODE.SPEED" type)
+       (setf frame (make-mode-speed-frame thing)))
       ((equal "RIG.FREQ" type)
        (setf frame (make-rig-freq-frame thing)))
       ((equal "RIG.PTT" type)

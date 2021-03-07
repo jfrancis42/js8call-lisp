@@ -47,6 +47,8 @@ JS8Call."
 
 (defun start-server (&optional (host "localhost") (port 2442))
   "Start the talked and listener threads."
+  (setf *js8-host* host)
+  (setf *js8-port* port)
   (setf *socket* (usocket:socket-connect host port :element-type 'character))
   (setf *listener-thread* (bt:make-thread
 			   (lambda () (create-listener *socket*))
@@ -55,6 +57,9 @@ JS8Call."
 			 (lambda () (create-talker *socket*))
 			 :name "js8-talker"))
   (get-callsign)
+  (get-rig-freq)
+  (get-info)
+  (get-speed)
   (get-grid-square))
 
 (defun kill-server ()
@@ -64,6 +69,11 @@ JS8Call."
   (when (bt:thread-alive-p *talker-thread*)
     (bt:destroy-thread *talker-thread*))
   (usocket:socket-close *socket*))
+
+(defun restart-server ()
+  (kill-server)
+  (sleep 1)
+  (start-server *js8-host* *js8-port*))
 
 (defun send-message (message)
   "Add a message to the transmit queue."

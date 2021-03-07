@@ -29,6 +29,10 @@ and 70cm."
     ((and (>= freq 420000) (<= freq 450000)) :70cm)
     (t nil)))
 
+(defun clean (call)
+  "Clean off all the /P cruft from a call."
+  (first (split-sequence:split-sequence #\/ call)))
+
 (defun ten-digit-maidenhead (latitude longitude)
   "Horrifically hacky 10-digit Maidenhead implementation (because I
 couldn't find one in CL to steal)."
