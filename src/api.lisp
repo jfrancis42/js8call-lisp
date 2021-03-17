@@ -64,11 +64,14 @@ JS8Call."
 
 (defun kill-server ()
   "Forcibly kill the talker and listener threads."
-  (when (bt:thread-alive-p *listener-thread*)
-    (bt:destroy-thread *listener-thread*))
-  (when (bt:thread-alive-p *talker-thread*)
-    (bt:destroy-thread *talker-thread*))
-  (usocket:socket-close *socket*))
+  (when *listener-thread*
+    (when (bt:thread-alive-p *listener-thread*)
+      (bt:destroy-thread *listener-thread*)))
+  (when *talker-thread*
+    (when (bt:thread-alive-p *talker-thread*)
+      (bt:destroy-thread *talker-thread*)))
+  (when *socket*
+    (usocket:socket-close *socket*)))
 
 (defun restart-server ()
   (kill-server)

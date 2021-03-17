@@ -220,6 +220,11 @@ not supplied)."
   (send-text
    (format nil "~A QUERY MSGS" dest-call)))
 
+(defun query-hearing-call (hearing-call &optional (dest-call "@ALLCALL"))
+  "Ask dest-call (@ALLCALL by default) if they can hear hearing-call."
+  (send-text
+   (format nil "~A QUERY CALL ~A?" dest-call hearing-call)))
+
 (defun send-sms (phone message &optional (dest-call "@APRSIS"))
   "Send an SMS message."
   (bt:with-lock-held (*sequence-lock*)

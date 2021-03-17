@@ -176,22 +176,6 @@
      *log-qso*)
     matches))
 
-(defun matches-2 ()
-  "Broken, maybe."
-  (let ((matches nil))
-    (mapcar
-     (lambda (a)
-       (mapcar
-	(lambda (b)
-	  (when (and (equal (jsown:val (jsown:val a "params") "FROM")
-			    (jsown:val (jsown:val b "params") "TO"))
-		     (equal (jsown:val (jsown:val a "params") "TO")
-			    (jsown:val (jsown:val b "params") "FROM")))
-	    (setf matches (cons (cons a b) matches))))
-	(get-frame-type "RX.DIRECTED" (get-log "../log.json"))))
-     (get-frame-type "RX.DIRECTED" (get-log "../log.json")))
-    matches))
-
 ;;; Local Variables:
 ;;; mode: Lisp
 ;;; coding: utf-8
