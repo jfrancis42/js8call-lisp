@@ -182,11 +182,11 @@ correctly reflect that change."
   (send-text (concatenate 'string call " GRID?")))
 
 (defun info? (call)
-  "Ask for another station,s INFO string."
+  "Ask for another station's INFO string."
   (send-text (concatenate 'string call " INFO?")))
 
 (defun status? (call)
-  "Ask for another station,s STATUS string."
+  "Ask for another station's STATUS string."
   (send-text (concatenate 'string call " STATUS?")))
 
 (defun hearing? (call)
@@ -240,6 +240,13 @@ not supplied)."
      (format nil "~A CMD :EMAIL-2  :~A ~A{~3,'0D}"
 	     dest-call address message
 	     (incf *sequence*)))))
+
+(defun send-pota (call park freq mode comment &optional (dest-call "@APRSIS"))
+  "Send a POTA spot. freq is in khz (ex: 7234)."
+  (bt:with-lock-held (*sequence-lock*)
+    (send-text
+     (format nil "~A CMD :POTAGW   :~A ~A ~A ~A ~A"
+	     dest-call call park freq mode comment))))
 
 (defun send-directed-message (dest-call message)
   "Send a directed message to a specific call."

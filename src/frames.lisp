@@ -523,6 +523,44 @@
     (format t "Drift: ~A ms~%" (frame-drift f))
     (format t "~%")))
 
+;; TODO: the following is a placeholder and needs to be completed.
+
+;; Class for a RX.BAND_ACTIVITY frame.
+(defclass rx-band-activity-frame (rx-frame)
+  ((frame-foo :accessor frame-foo :initarg :frame-foo :initform nil)))
+
+(defun make-rx-band-activity-frame (thing)
+  (make-instance 'rx-band-activity-frame
+		 :frame-type (clean-string (jsown:val thing "type"))
+		 :frame-value (if (equal "" (jsown:val thing "value"))
+				  nil
+				  (clean-string (jsown:val thing "value")))
+		 :frame-raw (jsown:val thing "RAW")))
+
+(defmethod serialize ((f rx-band-activity-frame))
+  "Serialize a rx-band-activity-frame object to JSON."
+  (let ((json nil))
+    (setf (jsown:val json "type") (frame-type f))
+    (when (frame-value f)
+      (setf (jsown:val json "value") (frame-value f)))
+    (setf (jsown:val json "raw") (frame-raw f))
+    (jsown:to-json json)))
+
+(defmethod process-frame ((f rx-band-activity-frame))
+  "Do any necessary processing on a RX.BAND_ACTIVITY frame."
+  t)
+
+(defmethod pp ((f rx-band-activity-frame))
+  "Print a RX.BAND_ACTIVITY frame."
+  (unless *suppress-activity*
+    (format t "Type: ~A~%" (frame-type f))
+    (format t "Time: ~A~%" (local-time:unix-to-timestamp (frame-timestamp f)))
+    (when (frame-value f)
+      (format t "Value: ~A~%" (frame-value f)))
+    (format t "~%")))
+
+;; TODO: the above is a placeholder and needs to be completed.
+
 ;; Class for a RX.DIRECTED frame.
 (defclass rx-directed-frame (rx-frame)
   ((frame-cmd :accessor frame-cmd :initarg :frame-cmd :initform nil)
@@ -670,6 +708,8 @@
        (setf frame (make-rx-spot-frame thing)))
       ((equal "RX.ACTIVITY" type)
        (setf frame (make-rx-activity-frame thing)))
+      ((equal "RX.BAND_ACTIVITY" type)
+       (setf frame (make-rx-band-activity-frame thing)))
       (t
        (format t "~%----------------~%~A~%----------------~%~%" thing)))
     (process-frame frame)

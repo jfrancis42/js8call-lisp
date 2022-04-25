@@ -20,7 +20,7 @@
 and queues it up."
   (let ((line nil)
 	(proc-line nil))
-    (loop ;repeat 10 do
+    (loop
 	  (usocket:wait-for-input socket)
 	  (setf line (read-line (usocket:socket-stream socket)))
 	  (setf proc-line (jsown:parse line))
