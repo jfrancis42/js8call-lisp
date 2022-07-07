@@ -56,7 +56,7 @@ JS8Call."
   (when *socket*
     (usocket:socket-close *socket*)))
 
-(defun start-server (&optional (host "localhost") (port 2442))
+(defun start-server (&optional (host "127.0.0.1") (port 2442))
   "Start the talked and listener threads."
   (kill-server)
   (sleep 1)

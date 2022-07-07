@@ -6,6 +6,15 @@
 (defvar *sequence* 0)
 (defvar *sequence-lock* (bt:make-lock))
 
+(defun get-inbox-messages ()
+  "todo"
+  (send-message
+   (jsown:to-json
+    (list :OBJ
+	  (list "params" :OBJ)
+	  (cons "type" "INBOX.GET_MESSAGES")
+	  (cons "value" "")))))
+
 (defun get-rig-freq ()
   "Ask JS8Call to get the radio's dial frequency."
   (send-message
